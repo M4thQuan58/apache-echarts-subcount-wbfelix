@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Real-time Subscriber Count</title>
+  <!-- Apache ECharts v6.1.0 CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/6.1.0/echarts.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: transparent;
+    }
+
+    #chart-wrapper {
+      width: 100%;
+      height: 400px;
+      transition: width 0.3s ease, height 0.3s ease;
+    }
+
+    #chart-container {
+      width: 100%;
+      height: 100%;
+    }
+
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.05);
+      padding: 12px;
+      border-radius: 6px;
+      width: fit-content;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+
+    .btn-soft {
+      background-color: #4caf50;
+      color: white;
+    }
+
+    .btn-soft:hover {
+      background-color: #45a049;
+    }
+
+    .btn-hard {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .btn-hard:hover {
+      background-color: #da190b;
+    }
+
+    .obs-guide-wrapper {
+      margin-top: 20px;
+      padding: 20px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background-color: #f9f9f9;
+      color: #333;
+    }
+
+    .obs-guide-wrapper code {
+      background: #272822;
+      color: #f8f8f2;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+
+    .obs-guide-wrapper pre {
+      background: #272822;
+      color: #a6e22e;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 1. Chart Container -->
+  <div id="chart-wrapper">
+    <div id="chart-container"></div>
+  </div>
+
+  <!-- 2. Controls Panel -->
+  <div class="controls">
+    <div class="control-group">
+      <label for="lineColor">Line/Area Color:</label>
+      <input type="color" id="lineColor" value="#5470c6">
+    </div>
+
+    <div class="control-group">
+      <label>
+        <input type="checkbox" id="toggleArea" checked> Fill Area
+      </label>
+    </div>
+
+    <div class="control-group">
+      <label for="areaAlpha">Alpha:</label>
+      <input type="range" id="areaAlpha" min="0" max="1" step="0.05" value="0.3" style="width: 80px;">
+      <span id="alphaValue">0.3</span>
+    </div>
+
+    <div class="control-group">
+      <label>
+        <input type="checkbox" id="toggleMarkers"> Show Markers
+      </label>
+    </div>
+
+    <div class="control-group">
+      <label for="chartWidth">Width:</label>
+      <input type="text" id="chartWidth" value="100%" style="width: 70px;">
+    </div>
+
+    <div class="control-group">
+      <label for="chartHeight">Height:</label>
+      <input type="text" id="chartHeight" value="400px" style="width: 70px;">
+    </div>
+
+    <div class="control-group">
+      <button id="softRefreshBtn" class="btn btn-soft">Soft Refresh</button>
+      <button id="hardRefreshBtn" class="btn btn-hard">Hard Refresh</button>
+    </div>
+  </div>
+
+  <!-- 3. OBS Integration Guide -->
+  <div class="obs-guide-wrapper">
+    <h2>OBS Studio Transparent Background Setup Guide</h2>
+    <p>To display this chart as a <strong>transparent overlay</strong> in OBS Studio using a Browser Source, follow these steps:</p>
+
+    <ol>
+      <li>In OBS Studio, add a new source by selecting <strong>Sources -> Add (+) -> Browser</strong>.</li>
+      <li>Check <strong>Local file</strong> if you are running this HTML file locally, or paste the <strong>URL</strong> if hosted on a web server.</li>
+      <li>In the <strong>Custom CSS</strong> section of the Browser Source properties, replace all default CSS with:</li>
+    </ol>
+
+    <pre><code>body { 
+  background-color: rgba(0, 0, 0, 0) !important; 
+  margin: 0px auto; 
+  overflow: hidden; 
+}</code></pre>
+
+    <p><strong>Additional Notes:</strong></p>
+    <ul>
+      <li>Hide or remove the UI controls (<code>.controls</code>) and guide (<code>.obs-guide-wrapper</code>) when streaming by adding <code>display: none;</code> in CSS.</li>
+      <li>Apache ECharts renders with a transparent background by default when no <code>backgroundColor</code> option is set.</li>
+    </ul>
+  </div>
+
+  <script>
+    const API_URL = 'https://mixerno.space/api/youtube-channel-counter/user/UC0ltcGlqeIlDZXnRPHkYSpw';
+    const MAX_POINTS = 200;
+
+    const chartWrapper = document.getElementById('chart-wrapper');
+    const chartDom = document.getElementById('chart-container');
+    const myChart = echarts.init(chartDom);
+
+    let chartData = [];
+
+    const colorPicker = document.getElementById('lineColor');
+    const areaCheckbox = document.getElementById('toggleArea');
+    const alphaInput = document.getElementById('areaAlpha');
+    const alphaValueDisplay = document.getElementById('alphaValue');
+    const markersCheckbox = document.getElementById('toggleMarkers');
+    const widthInput = document.getElementById('chartWidth');
+    const heightInput = document.getElementById('chartHeight');
+    const softRefreshBtn = document.getElementById('softRefreshBtn');
+    const hardRefreshBtn = document.getElementById('hardRefreshBtn');
+
+    function calculateFontSizes() {
+      const height = chartDom.clientHeight || 400;
+      const width = chartDom.clientWidth || 600;
+      const baseDim = Math.min(width, height);
+
+      return {
+        titleSize: Math.max(12, Math.min(24, Math.round(baseDim * 0.045))),
+        axisLabelSize: Math.max(9, Math.min(14, Math.round(baseDim * 0.028))),
+        symbolSize: Math.max(3, Math.min(8, Math.round(baseDim * 0.015)))
+      };
+    }
+
+    function getOption() {
+      const fonts = calculateFontSizes();
+      const isAreaVisible = areaCheckbox.checked;
+      const alphaVal = parseFloat(alphaInput.value);
+
+      return {
+        animation: true,
+        animationDuration: 800,
+        animationEasing: 'cubicOut',
+        
+        title: {
+          text: 'Real-time Subscriber Count',
+          left: 'center',
+          textStyle: {
+            fontSize: fonts.titleSize
+          }
+        },
+        tooltip: {
+          trigger: 'axis',
+          textStyle: {
+            fontSize: fonts.axisLabelSize
+          },
+          formatter: function (params) {
+            if (!params || !params[0]) return '';
+            const date = new Date(params[0].value[0]);
+            return `${date.toLocaleTimeString()}<br/>Subscribers: <b>${params[0].value[1].toLocaleString()}</b>`;
+          }
+        },
+        xAxis: {
+          type: 'time',
+          splitLine: { show: false },
+          axisLabel: {
+            fontSize: fonts.axisLabelSize
+          }
+        },
+        yAxis: {
+          type: 'value',
+          scale: true,
+          boundaryGap: ['10%', '10%'],
+          axisLabel: {
+            fontSize: fonts.axisLabelSize
+          }
+        },
+        series: [{
+          name: 'Subscribers',
+          type: 'line',
+          showSymbol: markersCheckbox.checked,
+          symbolSize: fonts.symbolSize,
+          smooth: true,
+          data: chartData,
+          itemStyle: {
+            color: colorPicker.value
+          },
+          areaStyle: isAreaVisible ? { opacity: alphaVal } : null
+        }]
+      };
+    }
+
+    myChart.setOption(getOption());
+
+    function updateStyle() {
+      const isAreaVisible = areaCheckbox.checked;
+      const alphaVal = parseFloat(alphaInput.value);
+      alphaValueDisplay.textContent = alphaVal;
+
+      const updatedAreaStyle = isAreaVisible ? { opacity: alphaVal } : { opacity: 0 };
+
+      myChart.setOption({
+        series: [{
+          showSymbol: markersCheckbox.checked,
+          itemStyle: {
+            color: colorPicker.value
+          },
+          areaStyle: updatedAreaStyle
+        }]
+      });
+    }
+
+    function updateSize() {
+      chartWrapper.style.width = widthInput.value;
+      chartWrapper.style.height = heightInput.value;
+      
+      setTimeout(() => {
+        myChart.resize();
+        myChart.setOption(getOption());
+      }, 300);
+    }
+
+    function softRefresh() {
+      fetchDataAndUpdate();
+      myChart.resize();
+      myChart.setOption(getOption());
+    }
+
+    function hardRefresh() {
+      chartData = [];
+      myChart.setOption({
+        series: [{
+          data: chartData
+        }]
+      }, true);
+      
+      myChart.setOption(getOption());
+      fetchDataAndUpdate();
+    }
+
+    colorPicker.addEventListener('input', updateStyle);
+    areaCheckbox.addEventListener('change', updateStyle);
+    alphaInput.addEventListener('input', updateStyle);
+    markersCheckbox.addEventListener('change', updateStyle);
+    widthInput.addEventListener('change', updateSize);
+    heightInput.addEventListener('change', updateSize);
+
+    softRefreshBtn.addEventListener('click', softRefresh);
+    hardRefreshBtn.addEventListener('click', hardRefresh);
+
+    async function fetchDataAndUpdate() {
+      try {
+        const response = await fetch(API_URL);
+        const data = await response.json();
+
+        const timestamp = data.t; 
+        const subItem = data.counts.find(item => item.value === 'subscribers');
+        
+        if (!subItem) return;
+
+        const count = subItem.count;
+
+        chartData.push({
+          name: new Date(timestamp).toString(),
+          value: [timestamp, count]
+        });
+
+        if (chartData.length > MAX_POINTS) {
+          chartData.shift();
+        }
+
+        myChart.setOption({
+          series: [{
+            data: chartData
+          }]
+        });
+
+      } catch (error) {
+        console.error('Error fetching API data:', error);
+      }
+    }
+
+    setInterval(() => {
+      const now = new Date();
+      const seconds = now.getSeconds();
+
+      if (seconds % 5 === 0) {
+        fetchDataAndUpdate();
+      }
+    }, 1000);
+
+    window.addEventListener('resize', () => {
+      myChart.resize();
+      myChart.setOption(getOption());
+    });
+  </script>
+</body>
+</html>
