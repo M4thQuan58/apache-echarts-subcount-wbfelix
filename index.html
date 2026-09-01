@@ -66,7 +66,8 @@
       gap: 6px;
     }
 
-    .control-group input[type="text"] {
+    .control-group input[type="text"],
+    .control-group input[type="number"] {
       background-color: var(--input-bg);
       color: var(--text-color);
       border: 1px solid var(--input-border);
@@ -143,6 +144,11 @@
     </div>
 
     <div class="control-group">
+      <label for="lineWidth">Line Width:</label>
+      <input type="number" id="lineWidth" value="2" min="1" max="10" style="width: 50px;">
+    </div>
+
+    <div class="control-group">
       <label>
         <input type="checkbox" id="toggleArea" checked> Fill Area
       </label>
@@ -158,6 +164,11 @@
       <label>
         <input type="checkbox" id="toggleMarkers"> Show Markers
       </label>
+    </div>
+
+    <div class="control-group">
+      <label for="fontSizeInput">Font Size:</label>
+      <input type="number" id="fontSizeInput" placeholder="Auto" min="8" max="48" style="width: 60px;">
     </div>
 
     <div class="control-group">
@@ -207,7 +218,7 @@
   </div>
 
   <script>
-    const API_URL = 'https://mixerno.space/api/youtube-channel-counter/user/UC0ltcGlqeIlDZXnRPHkYSpw';
+    const API_URL = 'https://mixerno.space/api/youtube-channel-counter/user/UC0ltcGlqeIlDZXnRPHkYSpw';[cite: 3]
     const MAX_POINTS = 200;
 
     const chartWrapper = document.getElementById('chart-wrapper');
@@ -217,10 +228,12 @@
     let chartData = [];
 
     const colorPicker = document.getElementById('lineColor');
+    const lineWidthInput = document.getElementById('lineWidth');
     const areaCheckbox = document.getElementById('toggleArea');
     const alphaInput = document.getElementById('areaAlpha');
     const alphaValueDisplay = document.getElementById('alphaValue');
     const markersCheckbox = document.getElementById('toggleMarkers');
+    const fontSizeInput = document.getElementById('fontSizeInput');
     const widthInput = document.getElementById('chartWidth');
     const heightInput = document.getElementById('chartHeight');
     const darkModeCheckbox = document.getElementById('toggleDarkMode');
@@ -228,6 +241,18 @@
     const hardRefreshBtn = document.getElementById('hardRefreshBtn');
 
     function calculateFontSizes() {
+      const customSize = parseInt(fontSizeInput.value, 10);
+      
+      // Nếu có nhập custom font size thì lấy luôn giá trị đó
+      if (!isNaN(customSize) && customSize > 0) {
+        return {
+          titleSize: customSize + 4,
+          axisLabelSize: customSize,
+          symbolSize: Math.max(3, Math.min(10, Math.round(customSize * 0.5)))
+        };
+      }
+
+      // Ngược lại (để trống) sẽ tính auto theo kích thước khung chứa
       const height = chartDom.clientHeight || 400;
       const width = chartDom.clientWidth || 600;
       const baseDim = Math.min(width, height);
@@ -244,6 +269,7 @@
       const isAreaVisible = areaCheckbox.checked;
       const alphaVal = parseFloat(alphaInput.value);
       const isDark = darkModeCheckbox.checked;
+      const lineWidthVal = parseInt(lineWidthInput.value, 10) || 2;
 
       const textColor = isDark ? '#ffffff' : '#333333';
       const splitLineColor = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)';
@@ -309,6 +335,9 @@
           symbolSize: fonts.symbolSize,
           smooth: true,
           data: chartData,
+          lineStyle: {
+            width: lineWidthVal
+          },
           itemStyle: {
             color: colorPicker.value
           },
@@ -325,10 +354,14 @@
       alphaValueDisplay.textContent = alphaVal;
 
       const updatedAreaStyle = isAreaVisible ? { opacity: alphaVal } : { opacity: 0 };
+      const lineWidthVal = parseInt(lineWidthInput.value, 10) || 2;
 
       myChart.setOption({
         series: [{
           showSymbol: markersCheckbox.checked,
+          lineStyle: {
+            width: lineWidthVal
+          },
           itemStyle: {
             color: colorPicker.value
           },
@@ -375,9 +408,11 @@
     }
 
     colorPicker.addEventListener('input', updateStyle);
+    lineWidthInput.addEventListener('input', updateStyle);
     areaCheckbox.addEventListener('change', updateStyle);
     alphaInput.addEventListener('input', updateStyle);
     markersCheckbox.addEventListener('change', updateStyle);
+    fontSizeInput.addEventListener('input', () => myChart.setOption(getOption()));
     darkModeCheckbox.addEventListener('change', toggleDarkModeHandler);
     widthInput.addEventListener('change', updateSize);
     heightInput.addEventListener('change', updateSize);
