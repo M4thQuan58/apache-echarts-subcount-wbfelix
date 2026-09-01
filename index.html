@@ -6,11 +6,35 @@
   <!-- Apache ECharts v6.1.0 CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/6.1.0/echarts.min.js"></script>
   <style>
+    :root {
+      --bg-color: #ffffff;
+      --text-color: #333333;
+      --panel-bg: rgba(0, 0, 0, 0.05);
+      --card-bg: #f9f9f9;
+      --card-border: #ccc;
+      --code-bg: #272822;
+      --code-text: #f8f8f2;
+      --input-bg: #ffffff;
+      --input-border: #ccc;
+    }
+
+    body.dark-mode {
+      --bg-color: #121212;
+      --text-color: #f0f0f0;
+      --panel-bg: rgba(255, 255, 255, 0.08);
+      --card-bg: #1e1e1e;
+      --card-border: #333;
+      --input-bg: #2a2a2a;
+      --input-border: #555;
+    }
+
     body {
       margin: 0;
       padding: 20px;
       font-family: Arial, sans-serif;
-      background: transparent;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
 
     #chart-wrapper {
@@ -30,7 +54,7 @@
       flex-wrap: wrap;
       gap: 15px;
       align-items: center;
-      background: rgba(0, 0, 0, 0.05);
+      background: var(--panel-bg);
       padding: 12px;
       border-radius: 6px;
       width: fit-content;
@@ -40,6 +64,14 @@
       display: flex;
       align-items: center;
       gap: 6px;
+    }
+
+    .control-group input[type="text"] {
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      border: 1px solid var(--input-border);
+      padding: 3px 6px;
+      border-radius: 4px;
     }
 
     .btn {
@@ -72,22 +104,23 @@
     .obs-guide-wrapper {
       margin-top: 20px;
       padding: 20px;
-      border: 1px solid #ccc;
+      border: 1px solid var(--card-border);
       border-radius: 8px;
-      background-color: #f9f9f9;
-      color: #333;
+      background-color: var(--card-bg);
+      color: var(--text-color);
+      transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
     }
 
     .obs-guide-wrapper code {
-      background: #272822;
-      color: #f8f8f2;
+      background: var(--code-bg);
+      color: var(--code-text);
       padding: 2px 6px;
       border-radius: 4px;
       font-family: monospace;
     }
 
     .obs-guide-wrapper pre {
-      background: #272822;
+      background: var(--code-bg);
       color: #a6e22e;
       padding: 12px;
       border-radius: 6px;
@@ -138,6 +171,12 @@
     </div>
 
     <div class="control-group">
+      <label>
+        <input type="checkbox" id="toggleDarkMode"> Dark Mode
+      </label>
+    </div>
+
+    <div class="control-group">
       <button id="softRefreshBtn" class="btn btn-soft">Soft Refresh</button>
       <button id="hardRefreshBtn" class="btn btn-hard">Hard Refresh</button>
     </div>
@@ -184,6 +223,7 @@
     const markersCheckbox = document.getElementById('toggleMarkers');
     const widthInput = document.getElementById('chartWidth');
     const heightInput = document.getElementById('chartHeight');
+    const darkModeCheckbox = document.getElementById('toggleDarkMode');
     const softRefreshBtn = document.getElementById('softRefreshBtn');
     const hardRefreshBtn = document.getElementById('hardRefreshBtn');
 
@@ -203,17 +243,30 @@
       const fonts = calculateFontSizes();
       const isAreaVisible = areaCheckbox.checked;
       const alphaVal = parseFloat(alphaInput.value);
+      const isDark = darkModeCheckbox.checked;
+
+      const textColor = isDark ? '#ffffff' : '#333333';
+      const splitLineColor = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)';
 
       return {
         animation: true,
         animationDuration: 800,
         animationEasing: 'cubicOut',
         
+        grid: {
+          top: 40,
+          left: '3%',
+          right: '3%',
+          bottom: '3%',
+          containLabel: true
+        },
+        
         title: {
           text: 'Real-time Subscriber Count',
           left: 'center',
           textStyle: {
-            fontSize: fonts.titleSize
+            fontSize: fonts.titleSize,
+            color: textColor
           }
         },
         tooltip: {
@@ -231,7 +284,8 @@
           type: 'time',
           splitLine: { show: false },
           axisLabel: {
-            fontSize: fonts.axisLabelSize
+            fontSize: fonts.axisLabelSize,
+            color: textColor
           }
         },
         yAxis: {
@@ -239,7 +293,13 @@
           scale: true,
           boundaryGap: ['10%', '10%'],
           axisLabel: {
-            fontSize: fonts.axisLabelSize
+            fontSize: fonts.axisLabelSize,
+            color: textColor
+          },
+          splitLine: {
+            lineStyle: {
+              color: splitLineColor
+            }
           }
         },
         series: [{
@@ -277,6 +337,15 @@
       });
     }
 
+    function toggleDarkModeHandler() {
+      if (darkModeCheckbox.checked) {
+        document.body.classList.add('dark-mode');
+      } else {
+        document.body.classList.remove('dark-mode');
+      }
+      myChart.setOption(getOption());
+    }
+
     function updateSize() {
       chartWrapper.style.width = widthInput.value;
       chartWrapper.style.height = heightInput.value;
@@ -309,6 +378,7 @@
     areaCheckbox.addEventListener('change', updateStyle);
     alphaInput.addEventListener('input', updateStyle);
     markersCheckbox.addEventListener('change', updateStyle);
+    darkModeCheckbox.addEventListener('change', toggleDarkModeHandler);
     widthInput.addEventListener('change', updateSize);
     heightInput.addEventListener('change', updateSize);
 
